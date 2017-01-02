@@ -354,6 +354,68 @@ func (c *AppInfo) Run(context *cmd.Context, client *cmd.Client) error {
 	return c.Show(result, servicesResult, quota, context)
 }
 
+type AppOpen struct {
+	cmd.GuessingCommand
+}
+
+func (c *AppOpen) Info() *cmd.Info {
+	return &cmd.Info{
+		Name:  "app-open",
+		Usage: "app-open [-a/--app appname]",
+		Desc: `Open in a browser a specific app. You need to be a member of a team that has access to the app to be able to
+open the app in a browser.`,
+		MinArgs: 0,
+	}
+}
+
+func (c *AppOpen) Show(result []byte, servicesResult []byte, quota []byte, context *cmd.Context) error {
+	var a app
+	err := json.Unmarshal(result, &a)
+	if err != nil {
+		return err
+	}
+	json.Unmarshal(servicesResult, &a.services)
+	json.Unmarshal(quota, &a.Quota)
+	fmt.Fprintln(context.Stdout, &a)
+	return nil
+}
+
+func (c *AppOpen) Run(context *cmd.Context, client *cmd.Client) error {
+	appName, err := c.Guess()
+	var a app
+	if err != nil {
+		return err
+	}
+	u, err := cmd.GetURL(fmt.Sprintf("/apps/%s", appName))
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return err
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	if response.StatusCode == http.StatusNoContent {
+		return nil
+	}
+	defer response.Body.Close()
+	result, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(result, &a)
+	if err != nil {
+		return err
+	}
+	open.Run("http://"+a.IP)
+
+	return nil
+}
+
+
 type unit struct {
 	ID          string
 	IP          string
